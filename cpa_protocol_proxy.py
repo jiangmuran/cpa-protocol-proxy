@@ -21,7 +21,7 @@ import uuid
 from typing import Iterable
 from urllib.parse import urlsplit, urlunsplit
 
-from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
+from aiohttp import ClientSession, ClientTimeout, TCPConnector, WSMsgType, web
 from aiohttp.client_exceptions import ClientConnectionResetError
 
 
@@ -59,6 +59,23 @@ def env_int(name: str, default: int) -> int:
     if value is None:
         return default
     return int(value)
+
+
+def env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return float(value)
+
+
+def should_log_request(request: web.Request, status: int, elapsed: float, client_closed: bool = False) -> bool:
+    if status >= 400:
+        return True
+    if client_closed and request.app["log_client_closes"]:
+        return True
+    if request.app["log_requests"]:
+        return True
+    return elapsed >= request.app["log_slow_seconds"]
 
 
 def filtered_headers(headers, extra_skip: Iterable[str] = ()) -> dict[str, str]:
@@ -343,29 +360,33 @@ async def stream_response(
         await downstream.write_eof()
     except ClientConnectionResetError:
         upstream_resp.close()
-        logging.info(
-            "%s %s -> client closed %.3fs bytes=%s bootstrap=%s attempt=%s",
-            request.method,
-            request.raw_path,
-            time.monotonic() - started_at,
-            bytes_sent,
-            request.get("bootstrap_injected", False),
-            attempt,
-        )
+        elapsed = time.monotonic() - started_at
+        if should_log_request(request, upstream_resp.status, elapsed, client_closed=True):
+            logging.info(
+                "%s %s -> client closed %.3fs bytes=%s bootstrap=%s attempt=%s",
+                request.method,
+                request.raw_path,
+                elapsed,
+                bytes_sent,
+                request.get("bootstrap_injected", False),
+                attempt,
+            )
         return downstream
     finally:
         upstream_resp.release()
 
-    logging.info(
-        "%s %s -> %s %.3fs bytes=%s bootstrap=%s attempt=%s",
-        request.method,
-        request.raw_path,
-        upstream_resp.status,
-        time.monotonic() - started_at,
-        bytes_sent,
-        request.get("bootstrap_injected", False),
-        attempt,
-    )
+    elapsed = time.monotonic() - started_at
+    if should_log_request(request, upstream_resp.status, elapsed):
+        logging.info(
+            "%s %s -> %s %.3fs bytes=%s bootstrap=%s attempt=%s",
+            request.method,
+            request.raw_path,
+            upstream_resp.status,
+            elapsed,
+            bytes_sent,
+            request.get("bootstrap_injected", False),
+            attempt,
+        )
     return downstream
 
 
@@ -469,6 +490,8 @@ async def proxy_http(request: web.Request) -> web.StreamResponse:
             "bootstrap_fix": request.app["inject_bootstrap"],
             "empty_output_retry_attempts": request.app["empty_output_retry_attempts"],
             "empty_output_treat_reasoning_as_output": request.app["empty_output_treat_reasoning_as_output"],
+            "upstream_conn_limit": request.app["upstream_conn_limit"],
+            "log_requests": request.app["log_requests"],
         })
 
     if request.headers.get("upgrade", "").lower() == "websocket":
@@ -572,9 +595,25 @@ async def create_app() -> web.Application:
     app["empty_output_retry_attempts"] = env_int("EMPTY_OUTPUT_RETRY_ATTEMPTS", 0)
     app["empty_output_prefetch_limit"] = env_int("EMPTY_OUTPUT_PREFETCH_LIMIT", DEFAULT_EMPTY_OUTPUT_PREFETCH_LIMIT)
     app["empty_output_treat_reasoning_as_output"] = env_bool("EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT", False)
+    app["upstream_conn_limit"] = env_int("UPSTREAM_CONN_LIMIT", 0)
+    app["log_requests"] = env_bool("LOG_REQUESTS", False)
+    app["log_client_closes"] = env_bool("LOG_CLIENT_CLOSES", False)
+    app["log_slow_seconds"] = env_float("LOG_SLOW_SECONDS", 30.0)
 
     timeout = ClientTimeout(total=None, connect=30, sock_connect=30, sock_read=None)
-    app["session"] = ClientSession(timeout=timeout, auto_decompress=False)
+    connector = TCPConnector(
+        limit=app["upstream_conn_limit"],
+        limit_per_host=env_int("UPSTREAM_CONN_LIMIT_PER_HOST", 0),
+        ttl_dns_cache=env_int("DNS_CACHE_TTL", 300),
+        keepalive_timeout=env_float("UPSTREAM_KEEPALIVE_TIMEOUT", 75.0),
+        enable_cleanup_closed=True,
+    )
+    app["session"] = ClientSession(
+        timeout=timeout,
+        connector=connector,
+        auto_decompress=False,
+        read_bufsize=env_int("READ_BUFFER_SIZE", 1024 * 1024),
+    )
 
     app.router.add_route("*", "/{tail:.*}", proxy_http)
 

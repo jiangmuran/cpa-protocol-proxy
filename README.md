@@ -92,6 +92,9 @@ EMPTY_OUTPUT_RETRY_ATTEMPTS=0
 EMPTY_OUTPUT_PREFETCH_LIMIT=1048576
 EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT=0
 CLIENT_MAX_SIZE=1073741824
+UPSTREAM_CONN_LIMIT=0
+LOG_REQUESTS=0
+LOG_SLOW_SECONDS=30
 SHUTDOWN_TIMEOUT=3
 LOG_LEVEL=INFO
 ```
@@ -109,6 +112,12 @@ upstream request cost for successful-but-empty stream retries.
 Set `EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT=1` if your clients display
 `reasoning_content` as useful output and you do not want reasoning-only streams
 to be retried.
+
+`UPSTREAM_CONN_LIMIT=0` removes aiohttp's default total connection cap of 100.
+This matters for long-lived streaming workloads, where a capped connector can
+turn into a hidden queue. `LOG_REQUESTS=0` avoids writing one journal line per
+successful request; errors and requests slower than `LOG_SLOW_SECONDS` are still
+logged.
 
 ## Testing
 
