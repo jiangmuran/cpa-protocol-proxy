@@ -71,6 +71,11 @@ CLIProxyAPI listens on 127.0.0.1:8318
 NewAPI Docker reaches the proxy at http://172.18.0.1:8317
 ```
 
+For a safer sidecar deployment, keep CLIProxyAPI on `8317`, run this proxy on
+`8320`, and point only selected NewAPI channels to
+`http://172.18.0.1:8320`. If UFW is enabled, allow the Docker bridge subnet to
+that sidecar port.
+
 In CLIProxyAPI config:
 
 ```yaml

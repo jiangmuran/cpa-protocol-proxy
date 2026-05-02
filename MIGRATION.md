@@ -63,6 +63,15 @@ the container:
 docker restart new-api
 ```
 
+If the proxy listens on a sidecar port such as `8320`, make sure the Docker
+bridge can reach it. With UFW, allow only the Docker subnet instead of exposing
+the port publicly:
+
+```bash
+ufw allow from 172.18.0.0/16 to any port 8320 proto tcp
+docker exec new-api wget -qO- http://172.18.0.1:8320/_health
+```
+
 ## New Server Migration Checklist
 
 1. Install Python 3 and venv support.
