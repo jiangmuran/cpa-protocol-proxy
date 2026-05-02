@@ -124,6 +124,34 @@ turn into a hidden queue. `LOG_REQUESTS=0` avoids writing one journal line per
 successful request; errors and requests slower than `LOG_SLOW_SECONDS` are still
 logged.
 
+## CLIProxyAPI Empty-Stream Mitigation
+
+If CLIProxyAPI itself returns this error, the Python proxy has not seen the first
+upstream SSE frame yet and cannot repair the stream shape:
+
+```text
+empty_stream: upstream stream closed before first payload
+```
+
+Use a narrow CLIProxyAPI-side mitigation before enabling broad request retries:
+
+```yaml
+request-retry: 0
+max-retry-credentials: 0
+routing:
+  strategy: "round-robin"
+streaming:
+  keepalive-seconds: 15
+  bootstrap-retries: 1
+```
+
+`streaming.bootstrap-retries: 1` only retries a streaming request before the
+first byte has been sent downstream. This is the lowest-blast-radius retry knob
+for intermittent first-payload disconnects. Keep `request-retry` at `0` unless
+you intentionally accept broader duplicate upstream calls for normal HTTP 5xx
+failures. `round-robin` also prevents one unhealthy credential from absorbing all
+traffic under `fill-first`.
+
 ## Testing
 
 ```bash

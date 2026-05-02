@@ -132,6 +132,23 @@ to `1` if you explicitly accept the cost of retrying likely NewAPI `/v1/messages
 converted OpenAI streams that end without any user-visible text, tool call,
 refusal, or audio output.
 
+If CPA logs show `empty_stream: upstream stream closed before first payload`, fix
+that on the CLIProxyAPI side before changing the Python proxy:
+
+```yaml
+request-retry: 0
+max-retry-credentials: 0
+routing:
+  strategy: "round-robin"
+streaming:
+  keepalive-seconds: 15
+  bootstrap-retries: 1
+```
+
+This keeps broad HTTP retries disabled, but lets CPA retry once before it has
+sent any SSE bytes to NewAPI. It also avoids `fill-first` concentrating all
+traffic on one unhealthy credential.
+
 `SHUTDOWN_TIMEOUT=3` and `TimeoutStopSec=5` keep service restarts short. During
 a restart, the proxy stops accepting new traffic, so prefer restarting during a
 quiet window or use a second temporary port if zero downtime is required.
