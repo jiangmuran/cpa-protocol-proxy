@@ -30,10 +30,11 @@ API Error: Content block not found
 Adding an OpenAI-style empty assistant bootstrap chunk gives NewAPI's converter
 the expected stream shape and prevents the duplicate `message_start` sequence.
 
-The proxy can also retry a streaming chat completion once if the upstream ends
+The proxy can optionally retry a streaming chat completion if the upstream ends
 successfully without any user-visible text, tool call, refusal, or audio
 output. This is intended for intermittent successful-but-empty streams,
-including streams that only contain hidden reasoning.
+including streams that only contain hidden reasoning. It is disabled by default
+because retrying sends another upstream model request and can increase cost.
 
 ## Features
 
@@ -87,7 +88,7 @@ LISTEN_PORT=8317
 UPSTREAM_BASE_URL=http://127.0.0.1:8318
 INJECT_OPENAI_STREAM_BOOTSTRAP=1
 BOOTSTRAP_BUFFER_LIMIT=1048576
-EMPTY_OUTPUT_RETRY_ATTEMPTS=1
+EMPTY_OUTPUT_RETRY_ATTEMPTS=0
 EMPTY_OUTPUT_PREFETCH_LIMIT=1048576
 EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT=0
 CLIENT_MAX_SIZE=1073741824
@@ -102,8 +103,8 @@ the Anthropic stream compatibility fix. A single request can also opt out with:
 X-CPA-Proxy-No-Bootstrap: 1
 ```
 
-Set `EMPTY_OUTPUT_RETRY_ATTEMPTS=0` to disable the successful-but-empty stream
-retry guard.
+Set `EMPTY_OUTPUT_RETRY_ATTEMPTS=1` only if you explicitly accept the extra
+upstream request cost for successful-but-empty stream retries.
 
 Set `EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT=1` if your clients display
 `reasoning_content` as useful output and you do not want reasoning-only streams

@@ -102,7 +102,7 @@ LISTEN_HOST=0.0.0.0
 LISTEN_PORT=8317
 UPSTREAM_BASE_URL=http://127.0.0.1:8318
 INJECT_OPENAI_STREAM_BOOTSTRAP=1
-EMPTY_OUTPUT_RETRY_ATTEMPTS=1
+EMPTY_OUTPUT_RETRY_ATTEMPTS=0
 EMPTY_OUTPUT_PREFETCH_LIMIT=1048576
 EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT=0
 SHUTDOWN_TIMEOUT=3
@@ -118,10 +118,10 @@ port: 8318
 Set `INJECT_OPENAI_STREAM_BOOTSTRAP=0` only if NewAPI fixes its Anthropic
 stream converter and you want a fully byte-for-byte OpenAI stream.
 
-`EMPTY_OUTPUT_RETRY_ATTEMPTS=1` retries likely NewAPI `/v1/messages` converted
-OpenAI streams once if CPA ends the stream without any user-visible text, tool
-call, refusal, or audio output. Hidden reasoning does not count by default,
-which guards the intermittent successful-but-empty response pattern.
+`EMPTY_OUTPUT_RETRY_ATTEMPTS=0` avoids extra upstream model calls. Only set it
+to `1` if you explicitly accept the cost of retrying likely NewAPI `/v1/messages`
+converted OpenAI streams that end without any user-visible text, tool call,
+refusal, or audio output.
 
 `SHUTDOWN_TIMEOUT=3` and `TimeoutStopSec=5` keep service restarts short. During
 a restart, the proxy stops accepting new traffic, so prefer restarting during a

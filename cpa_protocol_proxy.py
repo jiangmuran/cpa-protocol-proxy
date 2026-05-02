@@ -569,7 +569,7 @@ async def create_app() -> web.Application:
     app["upstream_base_url"] = os.getenv("UPSTREAM_BASE_URL", "http://127.0.0.1:8317")
     app["inject_bootstrap"] = env_bool("INJECT_OPENAI_STREAM_BOOTSTRAP", True)
     app["bootstrap_buffer_limit"] = env_int("BOOTSTRAP_BUFFER_LIMIT", DEFAULT_BOOTSTRAP_BUFFER_LIMIT)
-    app["empty_output_retry_attempts"] = env_int("EMPTY_OUTPUT_RETRY_ATTEMPTS", 1)
+    app["empty_output_retry_attempts"] = env_int("EMPTY_OUTPUT_RETRY_ATTEMPTS", 0)
     app["empty_output_prefetch_limit"] = env_int("EMPTY_OUTPUT_PREFETCH_LIMIT", DEFAULT_EMPTY_OUTPUT_PREFETCH_LIMIT)
     app["empty_output_treat_reasoning_as_output"] = env_bool("EMPTY_OUTPUT_TREAT_REASONING_AS_OUTPUT", False)
 
